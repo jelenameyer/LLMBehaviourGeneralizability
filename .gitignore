@@ -1,3 +1,5 @@
 *.jsonl
+*.csv
+old/
 alienGame/
 main/
