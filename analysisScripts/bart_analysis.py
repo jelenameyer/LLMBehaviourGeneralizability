@@ -18,10 +18,7 @@ llm_responses = pd.read_csv("bart_data/SmolLM2-1.7B-Instruct_bart_results.csv")
 # print(human_data.head())
 
 
-# --------------- preprocess both dfs -----------------------
-
-# ----------- human data --------------------
-
+# --------------- preprocess dfs -----------------------
 
 # ----------- LLM data -----------------------
 
