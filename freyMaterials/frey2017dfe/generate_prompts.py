@@ -8,6 +8,9 @@ folders = [""]
 
 output_prompts = []
 
+def randomized_choice_options(num_choices):
+    choice_options = list(map(chr, range(65, 91)))  # A–Z
+    return np.random.choice(choice_options, num_choices, replace=False)
 
 def format_number(num):
     return f"{int(num)}" if num == int(num) else f"{num:.1f}"
@@ -35,11 +38,16 @@ for folder in folders:
         participant_data = dfe_samples[dfe_samples["partid"] == participant_id]
         meta_row = participants[participants["partid"] == participant_id]
 
+        # assign random labels ONCE per participant
+        choice_labels = randomized_choice_options(2)
+        label_A, label_B = choice_labels[0], choice_labels[1]
+
         trials_text = []
         all_rts = []
 
         session_text = (
-            "In each round, you will be presented with two boxes: Box A and Box B. Each box contains different possible point amounts, with some amounts being more frequent than others. These points are later converted into real money. \n"
+            f"In each round, you will be presented with two boxes: Box {label_A} and Box {label_B}. "
+            "Each box contains different possible point amounts, with some amounts being more frequent than others. These points are later converted into real money. \n"
             "To learn about the content of the boxes, you can sample from them as many times as you like. Each time you sample, you will see how many points that box would have given you. You don’t earn or lose any points while sampling.\n"
             "Once you are ready, stop sampling and choose the box you prefer. One final outcome will be drawn from that box, and that result will determine how much you earn or lose for that round.\n"
             "In each round, first state whether you want to sample or choose, followed by selecting the desired box.\n"
@@ -51,8 +59,9 @@ for folder in folders:
             trial_text = [f"Problem {int(trial_number)}:"]
 
             for trial in trial_data.itertuples():
+                box_label = label_A if trial.sample_opt == "A" else label_B
                 decision_text = (
-                    f"You decided to <<sample>> Box <<{'A' if trial.sample_opt == 'A' else 'B'}>>. "
+                    f"You decided to <<sample>> Box <<{box_label}>>. "
                     f"You observed an outcome of {format_number(trial.sample_out)} points."
                 )
                 trial_text.append(decision_text)
@@ -62,9 +71,9 @@ for folder in folders:
             all_rts.append(None)
             all_rts.append(None)
             final_decision = trial_data.iloc[-1]
-            final_choice = "A" if final_decision.decision == "A" else "B"
+            final_choice_label = label_A if final_decision.decision == "A" else label_B
             trial_text.append(
-                f"You decided to <<choose>> Box <<{final_choice}>> based on your observations. "
+                f"You decided to <<choose>> Box <<{final_choice_label}>> based on your observations. "
             )
 
             trials_text.append("\n".join(trial_text))
@@ -93,4 +102,4 @@ output_path = "prompts.jsonl"
 with open(output_path, "w") as f:
     for prompt in output_prompts:
         prompt = {k: convert_to_builtin_type(v) for k, v in prompt.items()}
-        f.write(json.dumps(prompt) + "\n")
+        f.write(json.dumps(prompt, ensure_ascii=False) + "\n")

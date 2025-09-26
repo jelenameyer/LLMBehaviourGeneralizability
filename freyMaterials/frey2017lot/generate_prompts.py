@@ -90,4 +90,4 @@ output_path = "prompts.jsonl"
 with open(output_path, "w") as f:
     for prompt in output_prompts:
         prompt = {k: convert_to_builtin_type(v) for k, v in prompt.items()}
-        f.write(json.dumps(prompt) + "\n")
+        f.write(json.dumps(prompt, ensure_ascii=False) + "\n")

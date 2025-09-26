@@ -63,4 +63,4 @@ for participant in df.participant.unique():
 assert len(all_prompts) == df.participant.nunique(), f'The original dataset contains {df.participant.nunique()} experiments, but {len(all_prompts)} prompts have been generated.'
 
 with jsonlines.open('prompts.jsonl', 'w') as writer:
-    writer.write_all(all_prompts)
+    writer.write_all(all_prompts, ensure_ascii=False)

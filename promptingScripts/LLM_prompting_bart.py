@@ -25,7 +25,7 @@ MODEL_NAME = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 MODEL_KEY = "SmolLM2-1.7B-Instruct"
 OUTPUTS_DIR = "outputs"
 BATCH_SIZE = 32
-TEST_MAX_ROWS = 5
+TEST_MAX_ROWS = 3
 
 # --- Globals ---
 MODEL = None
@@ -85,7 +85,7 @@ def parse_bart_data(text: str) -> Dict[str, Any]:
     
     pump_key = pump_match.group(1)
     stop_key = stop_match.group(1)
-    print(pump_key, stop_key)
+    #print(pump_key, stop_key)
     
     # Extract instructions
     instructions_end = text.find('\n\nBalloon 1:')
@@ -149,36 +149,30 @@ def build_full_sequence_with_decisions(parsed_data: Dict[str, Any]) -> Dict[str,
         # Add balloon header
         full_text += f"\n\nBalloon {balloon_num}:\nYou press "
         
-        # Track position before each decision
-        current_pumps = 0
-        
         for i, key_press in enumerate(key_presses):
-            # Mark decision point (where model will predict next key)
-            prefix_text = full_text
-            if current_pumps > 0:
-                prefix_text += " ".join([f"{{{pump_key}}}"] * current_pumps) + " "
-            prefix_text += "{"
+            # Rebuild prefix up to this decision
+            prefix = full_text + " ".join([f"{{{k}}}" for k in key_presses[:i]]) 
+            if i > 0:
+                prefix += " "
+            prefix += "{"
             
-            # Store decision information
+            prefix_tokens = TOKENIZER(prefix, add_special_tokens=False).input_ids
+            
             decision_points.append({
                 "balloon_num": balloon_num,
                 "decision_num": i + 1,
-                "pumps_so_far": current_pumps,
+                "pumps_so_far": key_presses[:i].count(pump_key),
                 "choice_made": "pump" if key_press == pump_key else "stop",
                 "balloon_outcome": outcome,
                 "final_score": final_score,
-                "token_position": None  # Will be filled after tokenization
+                "prefix_length": len(prefix_tokens),   # NEW: store prefix length
+                "prefix": prefix                      # optional: for debugging
             })
-            
-            # Add this key press to the sequence
-            if key_press == pump_key:
-                current_pumps += 1
-            
+        
         # Complete the balloon text
         key_text = " ".join([f"{{{k}}}" for k in key_presses])
         full_text += key_text
         
-        # Add outcome
         if outcome == "explode":
             full_text += ". The balloon was inflated too much and explodes."
         else:
@@ -188,50 +182,9 @@ def build_full_sequence_with_decisions(parsed_data: Dict[str, Any]) -> Dict[str,
     device = MODEL.device
     input_ids = TOKENIZER(full_text, return_tensors="pt", add_special_tokens=False).input_ids.to(device)
     
-    # Find token positions for each decision point
-    # We need to re-tokenize prefixes to find exact positions
-    updated_decision_points = []
-    
-    for decision in decision_points:
-        balloon_num = decision["balloon_num"]
-        decision_num = decision["decision_num"]
-        
-        # Rebuild prefix up to this decision
-        prefix = instructions
-        
-        # Add all previous balloons
-        for prev_balloon in balloons:
-            if prev_balloon["balloon_num"] >= balloon_num:
-                break
-            
-            prefix += f"\n\nBalloon {prev_balloon['balloon_num']}:\nYou press "
-            key_text = " ".join([f"{{{k}}}" for k in prev_balloon["key_presses"]])
-            prefix += key_text
-            
-            if prev_balloon["outcome"] == "explode":
-                prefix += ". The balloon was inflated too much and explodes."
-            else:
-                prefix += f". You stop inflating the balloon and get {prev_balloon['final_score']} points."
-        
-        # Add current balloon up to this decision
-        current_balloon = balloons[balloon_num - 1]  # 0-indexed
-        prefix += f"\n\nBalloon {balloon_num}:\nYou press "
-        
-        # Add previous key presses in this balloon
-        keys_before = current_balloon["key_presses"][:decision_num - 1]
-        if keys_before:
-            prefix += " ".join([f"{{{k}}}" for k in keys_before]) + " "
-        prefix += "{"
-        
-        # Tokenize prefix to find position
-        prefix_tokens = TOKENIZER(prefix, add_special_tokens=False).input_ids
-        decision["token_position"] = len(prefix_tokens)
-        
-        updated_decision_points.append(decision)
-    
     return {
         "input_ids": input_ids,
-        "decision_points": updated_decision_points,
+        "decision_points": decision_points,
         "pump_key": pump_key,
         "stop_key": stop_key
     }
@@ -239,7 +192,7 @@ def build_full_sequence_with_decisions(parsed_data: Dict[str, Any]) -> Dict[str,
 
 def get_all_decision_logprobs(sequence_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    Get log probabilities for all decisions in one forward pass using masking.
+    Get log probabilities for all decisions in one forward pass using prefix alignment (DFE-style).
     """
     input_ids = sequence_data["input_ids"]
     decision_points = sequence_data["decision_points"]
@@ -251,35 +204,30 @@ def get_all_decision_logprobs(sequence_data: Dict[str, Any]) -> List[Dict[str, A
         outputs = MODEL(input_ids=input_ids)
         logits = outputs.logits  # (1, seq_len, vocab)
     
-    # Get token IDs for pump and stop keys
     pump_token = TOKENIZER(pump_key, add_special_tokens=False).input_ids[0]
     stop_token = TOKENIZER(stop_key, add_special_tokens=False).input_ids[0]
     
     results = []
-    
     for decision in decision_points:
-        pos = decision["token_position"]
-        
-        # Get logits at the decision position (predict next token after "{")
-        pred_logits = logits[0, pos - 1, :]  # -1 because we predict the next token
+        pos = decision["prefix_length"]
+        pred_logits = logits[0, pos - 1, :]  # predict the token after prefix
         log_probs = torch.log_softmax(pred_logits, dim=-1)
         
-        result = {
+        results.append({
             "balloon_num": decision["balloon_num"],
             "decision_num": decision["decision_num"],
             "pumps_so_far": decision["pumps_so_far"],
-            "choice_made": decision["choice_made"],
+            "human_decision": decision["choice_made"],
             "balloon_outcome": decision["balloon_outcome"],
             "final_score": decision["final_score"],
             "log_prob_pump": log_probs[pump_token].item(),
             "log_prob_stop": log_probs[stop_token].item(),
             "pump_key": pump_key,
             "stop_key": stop_key,
-        }
-        
-        results.append(result)
+        })
     
     return results
+
 
 
 def process_bart_participant(participant_data: dict, verbose: bool = False) -> List[Dict[str, Any]]:
@@ -299,11 +247,25 @@ def process_bart_participant(participant_data: dict, verbose: bool = False) -> L
         # Get predictions for all decisions in one pass
         decision_results = get_all_decision_logprobs(sequence_data)
         
-        # Add participant metadata
+        # Convert to standardized format
+        standardized_results = []
         for result in decision_results:
-            result.update({
-                "participant_id": participant_id,
+            standardized_results.append({
                 "model": MODEL_KEY,
+                "task": "BART",
+                "part_id": participant_id,
+                "round": result["balloon_num"],  # balloon_num becomes round
+                "decision_num": result["decision_num"],
+                "human_decision": result["human_decision"],
+                "log_prob_pump": result["log_prob_pump"],
+                "log_prob_stop": result["log_prob_stop"],
+                # Additional BART-specific info
+                "pumps_so_far": result["pumps_so_far"],
+                "balloon_outcome": result["balloon_outcome"],
+                "final_score": result["final_score"],
+                "pump_key": result["pump_key"],
+                "stop_key": result["stop_key"],
+                # Participant metadata
                 "age": participant_data.get("age"),
                 "sex": participant_data.get("sex"),
                 "location": participant_data.get("location"),
@@ -312,7 +274,7 @@ def process_bart_participant(participant_data: dict, verbose: bool = False) -> L
         if verbose:
             print(f"Participant {participant_id}: {len(decision_results)} decisions across {len(parsed_data['balloons'])} balloons")
         
-        return decision_results
+        return standardized_results
         
     except Exception as e:
         logging.error(f"Error processing participant {participant_id}: {e}")
@@ -397,12 +359,12 @@ def main():
         
         if len(all_results) > 0:
             print(f"\nChoice distribution:")
-            print(results_df['choice_made'].value_counts())
+            print(results_df['human_decision'].value_counts())
             
             print(f"\nBalloon outcome distribution:")
-            print(results_df.groupby(['participant_id', 'balloon_num'])['balloon_outcome'].first().value_counts())
+            print(results_df.groupby(['part_id', 'round'])['balloon_outcome'].first().value_counts())
             
-            avg_pumps = results_df.groupby(['participant_id', 'balloon_num'])['pumps_so_far'].max().mean()
+            avg_pumps = results_df.groupby(['part_id', 'round'])['pumps_so_far'].max().mean()
             print(f"\nAverage pumps per balloon: {avg_pumps:.1f}")
             
             # Show model efficiency
