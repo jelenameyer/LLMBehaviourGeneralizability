@@ -62,5 +62,5 @@ for dataset in datasets:
                             'text': prompt})
 
 # Write all to output file
-with jsonlines.open('prompts.jsonl', 'w') as writer:
+with jsonlines.open('prompts_bart.jsonl', 'w') as writer:
     writer.write_all(all_prompts)

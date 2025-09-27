@@ -96,7 +96,7 @@ for folder in folders:
                 final_choice_label = label_B
 
             trial_text.append(
-                f"You decided to choose Box <<{final_choice_label}>> based on the description."
+                f"You choose Box <<{final_choice_label}>> based on the description."
             )
 
             trials_text.append("\n".join(trial_text))
@@ -127,7 +127,7 @@ for folder in folders:
         output_prompts.append(prompt)
 
 # save results
-output_path = "prompts.jsonl"
+output_path = "prompts_dfd.jsonl"
 with open(output_path, "w") as f:
     for prompt in output_prompts:
         prompt = {k: convert_to_builtin_type(v) for k, v in prompt.items()}

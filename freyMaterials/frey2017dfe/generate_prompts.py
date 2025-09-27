@@ -48,7 +48,7 @@ for folder in folders:
         session_text = (
             f"In each round, you will be presented with two boxes: Box {label_A} and Box {label_B}. "
             "Each box contains different possible point amounts, with some amounts being more frequent than others. These points are later converted into real money. \n"
-            "To learn about the content of the boxes, you can sample from them as many times as you like. Each time you sample, you will see how many points that box would have given you. You don’t earn or lose any points while sampling.\n"
+            "To learn about the content of the boxes, you can sample from them as many times as you like. Each time you sample, you will see how many points that box would have given you. You do not earn or lose any points while sampling.\n"
             "Once you are ready, stop sampling and choose the box you prefer. One final outcome will be drawn from that box, and that result will determine how much you earn or lose for that round.\n"
             "In each round, first state whether you want to sample or choose, followed by selecting the desired box.\n"
             "At the end of the study, one task will be randomly selected. The outcome from that task will be added to or subtracted from your starting bonus of 15 CHF or 10 EUR. Depending on your decisions, you could double your bonus or lose it entirely."
@@ -98,7 +98,7 @@ for folder in folders:
 
         output_prompts.append(prompt)
 
-output_path = "prompts.jsonl"
+output_path = "prompts_dfe.jsonl"
 with open(output_path, "w") as f:
     for prompt in output_prompts:
         prompt = {k: convert_to_builtin_type(v) for k, v in prompt.items()}

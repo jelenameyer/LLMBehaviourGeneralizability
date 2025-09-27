@@ -3,8 +3,15 @@ import os
 import json
 import numpy as np
 
-base_path = "/Volumes/Extreme SSD/MPI/mpi_tasks/basel_berlin_data"
+base_path = ""
 folders = ["main"]
+
+# helper function (originally in uils.py (Dirk sent me isolated function)
+# randomizes letters that are used to generate prompts (because of prompt sensitivity LLMs)
+def randomized_choice_options(num_choices):
+    choice_options = list(map(chr, range(65, 91)))
+    return np.random.choice(choice_options, num_choices, replace=False)
+
 
 output_prompts = []
 
@@ -39,6 +46,10 @@ for folder in folders:
         participant_data = lotteries_data[lotteries_data["partid"] == participant_id]
         meta_row = participants[participants["partid"] == participant_id]
 
+        # assign random labels ONCE per participant
+        choice_labels = randomized_choice_options(2)
+        label_A, label_B = choice_labels[0], choice_labels[1]
+
         gambles_text = []
 
         session_text = (
@@ -54,14 +65,14 @@ for folder in folders:
 
             for trial in gamble_data.itertuples():
                 lottery_A = (
-                    f"Lottery A: {format_gain_or_loss(trial.X1)} points with a {trial.PX1:.0f}% chance or "
+                    f"Lottery {label_A}: {format_gain_or_loss(trial.X1)} points with a {trial.PX1:.0f}% chance or "
                     f"{format_gain_or_loss(trial.X2)} points with a {100 - trial.PX1:.0f}% chance."
                 )
                 lottery_B = (
-                    f"Lottery B: {format_gain_or_loss(trial.Z1)} points with a {trial.PZ1:.0f}% chance or "
+                    f"Lottery {label_B}: {format_gain_or_loss(trial.Z1)} points with a {trial.PZ1:.0f}% chance or "
                     f"{format_gain_or_loss(trial.Z2)} points with a {100 - trial.PZ1:.0f}% chance."
                 )
-                decision_line = f"You chose <<{'A' if trial.Decision_X == 1 else 'B'}>>."
+                decision_line = f"You chose <<{label_A if trial.Decision_X == 1 else label_B}>>."
 
                 trial_text = f"{lottery_A}\n{lottery_B}\n{decision_line}\n"
                 gamble_text.append(trial_text)
@@ -86,7 +97,7 @@ for folder in folders:
 
         output_prompts.append(prompt)
 
-output_path = "prompts.jsonl"
+output_path = "frey2017lot/prompts_lot.jsonl"
 with open(output_path, "w") as f:
     for prompt in output_prompts:
         prompt = {k: convert_to_builtin_type(v) for k, v in prompt.items()}
