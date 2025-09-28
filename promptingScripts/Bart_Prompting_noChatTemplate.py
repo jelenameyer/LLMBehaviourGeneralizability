@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-BART Task Module - Balloon Analogue Risk Task evaluation using chat template approach.
+BART Task Module - Balloon Analogue Risk Task evaluation WITHOUT chat template.
 This module can be imported and run by the model manager.
+Uses the original prefix-based approach for comparison with chat template results.
 """
 
 import json
@@ -14,23 +15,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # Task-specific configuration
 DATA_FILE = "bart_data/prompts_bart.jsonl"  # Update with your BART data file
-
-def detect_chat_tokens(tokenizer: AutoTokenizer) -> Tuple[str, str]:
-    """
-    Returns (USER_TOK, ASSIST_TOK) automatically.
-    Works with HF chat models using chat_template as a string.
-    Falls back to <|user|> / <|assistant|>.
-    """
-    tpl = getattr(tokenizer, "chat_template", None)
-    if tpl and isinstance(tpl, str):
-        # Look for first <|im_start|>role pattern
-        user_match = re.search(r"<\|im_start\|>user", tpl)
-        assist_match = re.search(r"<\|im_start\|>assistant", tpl)
-        user_tok = user_match.group(0) if user_match else "<|user|>"
-        assist_tok = assist_match.group(0) if assist_match else "<|assistant|>"
-        return user_tok, assist_tok
-    # Fallback defaults
-    return "<|user|>", "<|assistant|>"
 
 def parse_bart_data(text: str) -> Dict[str, Any]:
     """
@@ -84,20 +68,19 @@ def parse_bart_data(text: str) -> Dict[str, Any]:
         "balloons": balloons
     }
 
-def build_chat_sequence_with_decisions(parsed_data: Dict[str, Any], tokenizer: AutoTokenizer) -> Dict[str, Any]:
+def build_full_sequence_with_decisions(parsed_data: Dict[str, Any], tokenizer: AutoTokenizer) -> Dict[str, Any]:
     """
-    Build a single chat sequence containing ALL decisions with proper chat template assistant tokens.
-    This allows one forward pass to get logprobs for all decisions.
+    Build a single sequence containing all balloons with decision points marked.
+    This allows the model to learn from previous balloons.
+    Uses the original prefix-based approach (no chat template).
     """
-    USER_TOK, ASSIST_TOK = detect_chat_tokens(tokenizer)
-    
     instructions = parsed_data["instructions"]
     pump_key = parsed_data["pump_key"]
     stop_key = parsed_data["stop_key"]
     balloons = parsed_data["balloons"]
     
-    # Build one continuous chat sequence with all decisions
-    chat_parts = [f"{USER_TOK} {instructions}"]
+    # Build full text with all balloons
+    full_text = instructions
     decision_points = []
     
     for balloon in balloons:
@@ -106,17 +89,18 @@ def build_chat_sequence_with_decisions(parsed_data: Dict[str, Any], tokenizer: A
         outcome = balloon["outcome"]
         final_score = balloon["final_score"]
         
-        # Start this balloon
-        balloon_start = f"{USER_TOK} Balloon {balloon_num}:\nYou press"
-        
-        # Build the sequence for this balloon with proper assistant tokens at each decision
-        balloon_sequence = [balloon_start]
+        # Add balloon header
+        full_text += f"\n\nBalloon {balloon_num}:\nYou press "
         
         for i, key_press in enumerate(key_presses):
-            # Add the opening brace, then assistant token, then the decision, then closing brace
-            balloon_sequence.extend([" {", f"{ASSIST_TOK} {key_press}", "}"])
+            # Rebuild prefix up to this decision
+            prefix = full_text + " ".join([f"{{{k}}}" for k in key_presses[:i]]) 
+            if i > 0:
+                prefix += " "
+            prefix += "{"
             
-            # Store decision info (we'll find token positions later)
+            prefix_tokens = tokenizer(prefix, add_special_tokens=False).input_ids
+            
             decision_points.append({
                 "balloon_num": balloon_num,
                 "decision_num": i + 1,
@@ -124,62 +108,21 @@ def build_chat_sequence_with_decisions(parsed_data: Dict[str, Any], tokenizer: A
                 "choice_made": "pump" if key_press == pump_key else "stop",
                 "balloon_outcome": outcome,
                 "final_score": final_score,
-                "decision_key": key_press
+                "prefix_length": len(prefix_tokens),   # Store prefix length
+                "prefix": prefix                      # Optional: for debugging
             })
         
-        # Add the result of this balloon
+        # Complete the balloon text
+        key_text = " ".join([f"{{{k}}}" for k in key_presses])
+        full_text += key_text
+        
         if outcome == "explode":
-            balloon_sequence.append(". The balloon was inflated too much and explodes.")
+            full_text += ". The balloon was inflated too much and explodes."
         else:
-            balloon_sequence.append(f". You stop inflating the balloon and get {final_score} points.")
-        
-        # Add this balloon to the overall sequence
-        chat_parts.extend(balloon_sequence)
+            full_text += f". You stop inflating the balloon and get {final_score} points."
     
-    # Join everything into one sequence
-    full_text = "".join(chat_parts)
-    print(full_text)
-    # Now tokenize the full sequence
-    tokenized = tokenizer(full_text, return_tensors="pt", add_special_tokens=False, return_offsets_mapping=True)
-    input_ids = tokenized.input_ids
-    offsets = tokenized.offset_mapping[0].tolist()
-    
-    # Find all assistant token occurrences in the text and map to token positions
-    assistant_positions = []
-    
-    # Use regex to find all assistant token positions in the original text
-    import re
-    assist_pattern = re.escape(ASSIST_TOK) + r'\s*([' + re.escape(pump_key) + re.escape(stop_key) + r'])'
-    
-    for match in re.finditer(assist_pattern, full_text):
-        assist_start = match.start()
-        decision_char = match.group(1)
-        
-        # Find the token position that corresponds to this text position
-        # Look for token that overlaps with the assistant token start
-        for tok_idx, (start_pos, end_pos) in enumerate(offsets):
-            if start_pos <= assist_start < end_pos:
-                assistant_positions.append({
-                    "token_position": tok_idx,
-                    "decision_char": decision_char,
-                    "text_position": assist_start
-                })
-                break
-    
-    # Match assistant positions to decision points
-    if len(assistant_positions) != len(decision_points):
-        logging.warning(f"Mismatch: found {len(assistant_positions)} assistant tokens but {len(decision_points)} decisions")
-        # Take the minimum to avoid index errors
-        min_len = min(len(assistant_positions), len(decision_points))
-        assistant_positions = assistant_positions[:min_len]
-        decision_points = decision_points[:min_len]
-    
-    # Add token positions to decision points
-    for decision, pos_info in zip(decision_points, assistant_positions):
-        decision["assistant_token_position"] = pos_info["token_position"]
-        # Verify the decision matches
-        if pos_info["decision_char"] != decision["decision_key"]:
-            logging.warning(f"Decision mismatch: expected {decision['decision_key']}, found {pos_info['decision_char']}")
+    # Tokenize the full sequence once
+    input_ids = tokenizer(full_text, return_tensors="pt", add_special_tokens=False).input_ids
     
     return {
         "input_ids": input_ids,
@@ -187,49 +130,32 @@ def build_chat_sequence_with_decisions(parsed_data: Dict[str, Any], tokenizer: A
         "pump_key": pump_key,
         "stop_key": stop_key,
         "full_text": full_text,  # For debugging
-        "assistant_token": ASSIST_TOK,  # Store for reference
-        "chat_format": True
+        "chat_format": False  # Indicate this is NOT chat format
     }
 
-def get_decision_logprobs_chat_style(sequence_data: Dict[str, Any], model: AutoModelForCausalLM, tokenizer: AutoTokenizer) -> List[Dict[str, Any]]:
+def get_all_decision_logprobs(sequence_data: Dict[str, Any], model: AutoModelForCausalLM, tokenizer: AutoTokenizer) -> List[Dict[str, Any]]:
     """
-    Get log probabilities for ALL decisions in ONE forward pass.
-    Uses the actual chat template assistant token positions to identify where decisions are made.
+    Get log probabilities for all decisions in one forward pass using prefix alignment (DFE-style).
+    Original approach without chat template.
     """
     input_ids = sequence_data["input_ids"]
     decision_points = sequence_data["decision_points"]
     pump_key = sequence_data["pump_key"]
     stop_key = sequence_data["stop_key"]
     
-    # Get token IDs for pump and stop keys
-    pump_token = tokenizer(pump_key, add_special_tokens=False).input_ids[0]
-    stop_token = tokenizer(stop_key, add_special_tokens=False).input_ids[0]
-    
     # Single forward pass for the entire sequence
     with torch.inference_mode():
         outputs = model(input_ids=input_ids.to(model.device))
         logits = outputs.logits  # (1, seq_len, vocab)
     
-    results = []
+    pump_token = tokenizer(pump_key, add_special_tokens=False).input_ids[0]
+    stop_token = tokenizer(stop_key, add_special_tokens=False).input_ids[0]
     
+    results = []
     for decision in decision_points:
         try:
-            # Get the assistant token position
-            assist_token_pos = decision.get("assistant_token_position")
-            if assist_token_pos is None:
-                logging.warning(f"No assistant token position found for balloon {decision['balloon_num']}, decision {decision['decision_num']}")
-                continue
-            
-            # The model predicts the next token AFTER the assistant token
-            # We want the logprobs for the decision token (H or C)
-            pred_pos = assist_token_pos + 1
-            
-            if pred_pos >= logits.shape[1]:
-                logging.warning(f"Prediction position {pred_pos} exceeds sequence length {logits.shape[1]}")
-                continue
-            
-            # Get logprobs at this position for pump vs stop
-            pred_logits = logits[0, pred_pos, :]
+            pos = decision["prefix_length"]
+            pred_logits = logits[0, pos - 1, :]  # predict the token after prefix
             log_probs = torch.log_softmax(pred_logits, dim=-1)
             
             results.append({
@@ -244,16 +170,16 @@ def get_decision_logprobs_chat_style(sequence_data: Dict[str, Any], model: AutoM
                 "pump_key": pump_key,
                 "stop_key": stop_key,
             })
-            
         except Exception as e:
             logging.error(f"Error processing decision for balloon {decision['balloon_num']}, decision {decision['decision_num']}: {e}")
             continue
     
     return results
 
-def process_bart_participant_chat_style(participant_data: dict, model: AutoModelForCausalLM, tokenizer: AutoTokenizer, model_key: str, verbose: bool = False) -> List[Dict[str, Any]]:
+def process_bart_participant(participant_data: dict, model: AutoModelForCausalLM, tokenizer: AutoTokenizer, model_key: str, verbose: bool = False) -> List[Dict[str, Any]]:
     """
-    Process a single BART participant using chat-style approach.
+    Process a single BART participant using efficient sequence processing.
+    Uses original prefix-based approach (no chat template).
     """
     text = participant_data["text"]
     participant_id = participant_data["participant"]
@@ -267,14 +193,14 @@ def process_bart_participant_chat_style(participant_data: dict, model: AutoModel
             total_decisions = sum(len(b['key_presses']) for b in parsed_data['balloons'])
             logging.info(f"Participant {participant_id}: Total decisions to process: {total_decisions}")
         
-        # Build chat sequence with decision points
-        sequence_data = build_chat_sequence_with_decisions(parsed_data, tokenizer)
+        # Build sequence with decision points
+        sequence_data = build_full_sequence_with_decisions(parsed_data, tokenizer)
         
         if verbose:
             logging.info(f"Participant {participant_id}: Built {len(sequence_data['decision_points'])} decision points")
         
-        # Get predictions for all decisions
-        decision_results = get_decision_logprobs_chat_style(sequence_data, model, tokenizer)
+        # Get predictions for all decisions in one pass
+        decision_results = get_all_decision_logprobs(sequence_data, model, tokenizer)
         
         if verbose:
             logging.info(f"Participant {participant_id}: Successfully processed {len(decision_results)} decisions")
@@ -284,9 +210,9 @@ def process_bart_participant_chat_style(participant_data: dict, model: AutoModel
         for result in decision_results:
             standardized_results.append({
                 "model": model_key,
-                "task": "BART",
+                "task": "BART_NoChat",  # Distinguish from chat version
                 "part_id": participant_id,
-                "round": result["balloon_num"],
+                "round": result["balloon_num"],  # balloon_num becomes round
                 "decision_num": result["decision_num"],
                 "human_decision": result["human_decision"],
                 "log_prob_pump": result["log_prob_pump"],
@@ -312,7 +238,7 @@ def process_bart_participant_chat_style(participant_data: dict, model: AutoModel
 def run_task(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, model_key: str, 
              test_mode: bool = False, data_file: str = DATA_FILE) -> pd.DataFrame:
     """
-    Main task runner function for BART evaluation.
+    Main task runner function for BART evaluation without chat template.
     
     Args:
         model: The loaded model
@@ -324,7 +250,7 @@ def run_task(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, model_key: s
     Returns:
         pandas.DataFrame: Results dataframe with BART decision logprobs
     """
-    logging.info(f"Starting BART task for model: {model_key}")
+    logging.info(f"Starting BART NoChat task for model: {model_key}")
     
     all_results = []
     
@@ -348,46 +274,52 @@ def run_task(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, model_key: s
             
         # Limit entries in test mode
         if test_mode:
-            participant_data = participant_data[:2]
+            participant_data = participant_data[:10]
             logging.info(f"Test mode: processing only first 2 participants")
             
         # Process each participant
         for entry_idx, participant in enumerate(participant_data):
-            logging.info(f"Processing BART participant {entry_idx + 1}/{len(participant_data)}: {participant.get('participant', 'unknown')}")
+            logging.info(f"Processing BART NoChat participant {entry_idx + 1}/{len(participant_data)}: {participant.get('participant', 'unknown')}")
             
             try:
-                results = process_bart_participant_chat_style(participant, model, tokenizer, model_key, verbose=test_mode)
+                results = process_bart_participant(participant, model, tokenizer, model_key, verbose=test_mode)
                 all_results.extend(results)
                     
             except Exception as e:
-                logging.error(f"Error processing BART participant {entry_idx}: {e}")
+                logging.error(f"Error processing BART NoChat participant {entry_idx}: {e}")
                 continue
         
         # Create and return DataFrame
         if all_results:
             df = pd.DataFrame(all_results)
-            logging.info(f"BART task completed. Generated {len(all_results)} rows of results.")
+            logging.info(f"BART NoChat task completed. Generated {len(all_results)} rows of results.")
             
             # Log summary statistics
             if len(all_results) > 0:
                 logging.info(f"Choice distribution: {df['human_decision'].value_counts().to_dict()}")
                 avg_pumps = df.groupby(['part_id', 'round'])['pumps_so_far'].max().mean()
                 logging.info(f"Average pumps per balloon: {avg_pumps:.1f}")
+                
+                # Log efficiency metrics (similar to original code)
+                total_participants = len(participant_data)
+                total_decisions = len(all_results)
+                logging.info(f"Efficiency: {total_participants} participants processed for {total_decisions} decisions")
+                logging.info(f"({total_decisions/total_participants:.0f} decisions per participant)")
             
             return df
         else:
-            logging.warning(f"No results generated for BART task on {model_key}")
+            logging.warning(f"No results generated for BART NoChat task on {model_key}")
             return pd.DataFrame()
             
     except Exception as e:
-        logging.error(f"Error in BART task for model {model_key}: {e}")
+        logging.error(f"Error in BART NoChat task for model {model_key}: {e}")
         return pd.DataFrame()
 
 def get_task_info() -> Dict[str, str]:
     """Return information about this task."""
     return {
-        "name": "BART",
-        "description": "Balloon Analogue Risk Task evaluation using chat-style logprobs",
+        "name": "BART_NoChat",
+        "description": "Balloon Analogue Risk Task evaluation using original prefix-based approach (no chat template)",
         "output_columns": ["model", "task", "part_id", "round", "decision_num", "human_decision",
                           "log_prob_pump", "log_prob_stop", "pumps_so_far", "balloon_outcome", 
                           "final_score", "pump_key", "stop_key", "age", "sex", "location"],
