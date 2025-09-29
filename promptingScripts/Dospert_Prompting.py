@@ -28,6 +28,7 @@ def detect_chat_tokens(tokenizer: AutoTokenizer) -> Tuple[str, str]:
         assist_match = re.search(r"<\|im_start\|>assistant", tpl)
         user_tok = user_match.group(0) if user_match else "<|user|>"
         assist_tok = assist_match.group(0) if assist_match else "<|assistant|>"
+        #print(f"Tokens used: {user_tok, assist_tok}")
         return user_tok, assist_tok
     # Fallback defaults
     return "<|user|>", "<|assistant|>"
@@ -61,6 +62,7 @@ def candidate_logprobs_chatstyle(text: str, model: AutoModelForCausalLM, tokeniz
         else:
             rebuilt.append(ln)
     chat_text = "\n".join(rebuilt)
+    #print(chat_text)
     
     # Encode and get logprobs
     enc = tokenizer(chat_text, return_tensors="pt", return_offsets_mapping=True)

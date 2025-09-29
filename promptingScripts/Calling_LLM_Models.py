@@ -182,7 +182,19 @@ MODEL_CONFIGS = {
         "is_test": False,
     },
     
-    
+    # --- BigScience (Bloom) ---
+
+    "bloomz-3b": {
+        "model_key": "bloomz-3b",
+        "model_name": "bigscience/bloomz-3b",
+        "is_test": False,
+    },
+
+    "bloomz-7b1": {
+        "model_key": "bloomz-7b1",
+        "model_name": "bigscience/bloomz-7b1",
+        "is_test": False,
+    },
 }
 
 class ModelManager:
