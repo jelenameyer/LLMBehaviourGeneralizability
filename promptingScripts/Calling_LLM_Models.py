@@ -31,17 +31,9 @@ MODEL_CONFIGS = {
         "model_name": "HuggingFaceTB/SmolLM-1.7B-Instruct",
         "is_test": False,
     },
-    
     "zephyr-7b": {
         "model_key": "zephyr-7b-beta",
         "model_name": "HuggingFaceH4/zephyr-7b-beta",
-        "is_test": False,
-    },
-    
-    # --- OLMo Instruct ---   
-    "olmo2_7b_it": {
-        "model_key": "OLMo-2-7B-Instruct",
-        "model_name": "allenai/OLMo-2-1124-7B-Instruct",
         "is_test": False,
     },
 
@@ -78,13 +70,11 @@ MODEL_CONFIGS = {
         "model_name": "tiiuae/Falcon3-1B-Instruct",
         "is_test": False,
     },
-
     "falcon3_7b": {
         "model_key": "Falcon-3-7B-Instruct",
         "model_name": "tiiuae/Falcon3-7B-Instruct",
         "is_test": False,
     },
-
     "falcon3_10b": {
         "model_key": "Falcon-3-10B-Instruct",
         "model_name": "tiiuae/Falcon3-10B-Instruct",
@@ -97,13 +87,11 @@ MODEL_CONFIGS = {
         "model_name": "google/gemma-3-1b-it",
         "is_test": False,
     },
-
      "gemma-3-4b": {
         "model_key": "gemma-3-4b-it",
         "model_name": "google/gemma-3-4b-it",
         "is_test": False,
     },
-
     # "gemma-3-12b": {
     #     "model_key": "gemma-3-12b-it",
     #     "model_name": "google/gemma-3-12b-it",
@@ -114,19 +102,16 @@ MODEL_CONFIGS = {
     #     "model_name": "google/gemma-3-27b-it",
     #     "is_test": False,
     # },
-
     "gemma-2-2b": {
         "model_key": "gemma-2-2b-it",
         "model_name": "google/gemma-2-2b-it",
         "is_test": False,
     },
-
     "gemma-2-9b": {
         "model_key": "gemma-2-9b-it",
         "model_name": "google/gemma-2-9b-it",
         "is_test": False,
     },
-
     # "gemma-2-27b": {
     #     "model_key": "gemma-2-27b-it",
     #     "model_name": "google/gemma-2-27b-it",
@@ -139,13 +124,11 @@ MODEL_CONFIGS = {
         "model_name": "mistralai/Mistral-7B-Instruct-v0.3",
         "is_test": False,
     },
-
     "Ministral-8b-2410": {
         "model_key": "Ministral-8B-Instruct-2410",
         "model_name": "mistralai/Ministral-8B-Instruct-2410",
         "is_test": False,
     },
-
     # "mistral-24b-2501": {
     #     "model_key": "Mistral-Small-24B-Instruct-2501",
     #     "model_name": "mistralai/Mistral-Small-24B-Instruct-2501",
@@ -181,15 +164,20 @@ MODEL_CONFIGS = {
         "model_name": "Qwen/Qwen3-8B",
         "is_test": False,
     },
-    
-    # --- BigScience (Bloom) ---
 
+    # --- OLMo Instruct ---   
+    "olmo2_7b_it": {
+        "model_key": "OLMo-2-7B-Instruct",
+        "model_name": "allenai/OLMo-2-1124-7B-Instruct",
+        "is_test": False,
+    },
+
+    # --- BigScience (Bloom) ---
     "bloomz-3b": {
         "model_key": "bloomz-3b",
         "model_name": "bigscience/bloomz-3b",
         "is_test": False,
     },
-
     "bloomz-7b1": {
         "model_key": "bloomz-7b1",
         "model_name": "bigscience/bloomz-7b1",
