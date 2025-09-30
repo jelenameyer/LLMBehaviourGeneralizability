@@ -158,16 +158,24 @@ MODEL_CONFIGS = {
         "model_name": "Qwen/Qwen3-4B-Instruct-2507",
         "is_test": False,
     },
-
     "Qwen3-8B": {
         "model_key": "Qwen3-8B",
         "model_name": "Qwen/Qwen3-8B",
         "is_test": False,
     },
-
+    "Qwen3-14B": {
+        "model_key": "Qwen3-14B",
+        "model_name": "Qwen/Qwen3-14B",
+        "is_test": False,
+    },
     # "Qwen3-30B-A3B": {
     #     "model_key": "Qwen3-30B-A3B-Instruct-2507",
     #     "model_name": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    #     "is_test": False,
+    # },
+    # "Qwen3-32B": {
+    #     "model_key": "Qwen3-32B",
+    #     "model_name": "Qwen/Qwen3-32B",
     #     "is_test": False,
     # },
 
@@ -247,6 +255,32 @@ MODEL_CONFIGS = {
         "is_test": False,
     },
 
+    # --- Microsoft Phi ---
+    "Phi-4-mini-4B": {
+        "model_key": "Phi-4-mini-instruct",
+        "model_name": "microsoft/Phi-4-mini-instruct",
+        "is_test": False,
+    },
+    "Phi-3.5-mini-4B": {
+        "model_key": "Phi-3.5-mini-instruct",
+        "model_name": "microsoft/Phi-3.5-mini-instruct",
+        "is_test": False,
+    },
+    "Phi-3-mini-4B": {
+        "model_key": "Phi-3-mini-128k-instruct",
+        "model_name": "microsoft/Phi-3-mini-128k-instruct",
+        "is_test": False,
+    },
+    "Phi-3-small-7B": {
+        "model_key": "Phi-3-small-128k-instruct",
+        "model_name": "microsoft/Phi-3-small-128k-instruct",
+        "is_test": False,
+    },
+    # "Phi-3-medium-14B": {
+    #     "model_key": "Phi-3-medium-128k-instruct",
+    #     "model_name": "microsoft/Phi-3-medium-128k-instruct",
+    #     "is_test": False,
+    # },
 
 }
 
