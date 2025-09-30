@@ -165,6 +165,38 @@ MODEL_CONFIGS = {
         "is_test": False,
     },
 
+    # "Qwen3-30B-A3B": {
+    #     "model_key": "Qwen3-30B-A3B-Instruct-2507",
+    #     "model_name": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    #     "is_test": False,
+    # },
+
+    "Qwen25-1.5B": {
+        "model_key": "Qwen2.5-1.5B-Instruct",
+        "model_name": "Qwen/Qwen2.5-1.5B-Instruct",
+        "is_test": False,
+    },
+    "Qwen25-3B": {
+        "model_key": "Qwen2.5-3B-Instruct",
+        "model_name": "Qwen/Qwen2.5-3B-Instruct",
+        "is_test": False,
+    },
+    "Qwen25-7B": {
+        "model_key": "Qwen2.5-7B-Instruct",
+        "model_name": "Qwen/Qwen2.5-7B-Instruct",
+        "is_test": False,
+    },
+    # "Qwen25-14B": {
+    #     "model_key": "Qwen2.5-14B-Instruct",
+    #     "model_name": "Qwen/Qwen2.5-14B-Instruct",
+    #     "is_test": False,
+    # },
+    # "Qwen25-32B": {
+    #     "model_key": "Qwen2.5-32B-Instruct",
+    #     "model_name": "Qwen/Qwen2.5-32B-Instruct",
+    #     "is_test": False,
+    # },
+
     # --- OLMo Instruct ---   
     "olmo2_7b_it": {
         "model_key": "OLMo-2-7B-Instruct",
@@ -183,6 +215,39 @@ MODEL_CONFIGS = {
         "model_name": "bigscience/bloomz-7b1",
         "is_test": False,
     },
+
+    # ----- Swiss Ai Apertus ----
+    "Apertus-8B-2509": {
+        "model_key": "Apertus-8B-Instruct-2509",
+        "model_name": "swiss-ai/Apertus-8B-Instruct-2509",
+        "is_test": False,
+    },
+    # "Apertus-70B-2509": {
+    #     "model_key": "Apertus-70B-Instruct-2509",
+    #     "model_name": "swiss-ai/Apertus-70B-Instruct-2509",
+    #     "is_test": False,
+    # },
+
+    # ----- GPT oss ----
+    # "gpt-oss-20b": {
+    #     "model_key": "gpt-oss-20b",
+    #     "model_name": "openai/gpt-oss-20b",
+    #     "is_test": False,
+    # },
+    
+    # ----- Granite ibm ----
+    "granite-3.3-2b": {
+        "model_key": "granite-3.3-2b-instruct",
+        "model_name": "ibm-granite/granite-3.3-2b-instruct",
+        "is_test": False,
+    },
+    "granite-3.3-8b": {
+        "model_key": "granite-3.3-8b-instruct",
+        "model_name": "ibm-granite/granite-3.3-8b-instruct",
+        "is_test": False,
+    },
+
+
 }
 
 class ModelManager:
